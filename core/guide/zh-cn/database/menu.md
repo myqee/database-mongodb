@@ -1,5 +1,0 @@
-* [配置](config.html)
-* [函数参考](functions/index.html)
-* [注意](notyl.html)
-* [Database::query](functions/query.html)
-* [Database::connection](functions/connection.html)

@@ -1,8 +1,17 @@
 {
-  "name": "myqee/myqee",
-  "description": "The MyQEE PHP Framework",
-  "type": "project",
-  "keywords": ["myqee", "framework"],
+  "name": "myqee/database-mongo",
+  "description": "MyQEE MongoDB Database Driver",
+  "keywords": ["MyQEE", "Driver", "Database", "Driver", "Mongo", "MongoDB"],
+  "homepage": "http://www.myqee.com/",
+  "myqee": {
+    "name": {
+      "en": "MongoDB Database Driver",
+      "zh-cn": "MongoDB 数据库驱动",
+      "zh-tw": "MongoDB 數據庫驅動",
+      "zh-hk": "MongoDB 數據庫驅動"
+    }
+  },
+  "type": "myqee-driver",
   "license": "Apache-2.0",
   "authors": [
     {
@@ -11,17 +20,7 @@
       "homepage": "http://www.queyang.com/"
     }
   ],
-  "require": {
-    "myqee/installer": "~3.0",
-    "myqee/core": "~3.0",
-    "myqee/develop": "~3.0"
-  },
-  "config": {
-    "bin-dir" : "bin"
-  },
-  "scripts": {
-    "post-autoload-dump": [
-      "MyQEE\\Installer\\InstallerScript::postAutoloadDump"
-    ]
+  "autoload": {
+    "psr-0": {"MyQEE\\Driver\\Database\\Mongo": "_src/"}
   }
 }
