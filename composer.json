@@ -1,26 +1,27 @@
 {
-  "name": "myqee/database-mongo",
-  "description": "MyQEE MongoDB Database Driver",
-  "keywords": ["MyQEE", "Driver", "Database", "Driver", "Mongo", "MongoDB"],
+  "name": "myqee/database-mongodb",
+  "description": "myqee mongodb database library",
+  "keywords": ["MyQEE", "Database"],
   "homepage": "http://www.myqee.com/",
-  "myqee": {
-    "name": {
-      "en": "MongoDB Database Driver",
-      "zh-cn": "MongoDB 数据库驱动",
-      "zh-tw": "MongoDB 數據庫驅動",
-      "zh-hk": "MongoDB 數據庫驅動"
-    }
-  },
-  "type": "myqee-driver",
   "license": "Apache-2.0",
   "authors": [
     {
-      "name": "jonwang",
-      "email": "jonwang@queyang.com",
+      "name": "呼吸二氧化碳",
+      "email": "jonwang@myqee.com",
       "homepage": "http://www.queyang.com/"
     }
   ],
-  "autoload": {
-    "psr-0": {"MyQEE\\Driver\\Database\\Mongo": "_src/"}
+  "type": "database",
+  "extra": {
+    "dir": "MongoDB"
+  },
+  "require": {
+    "php": ">=5.4.0",
+    "myqee/installer": "~4.1",
+    "myqee/database": "~4.1"
+  },
+  "require-dev": {
+    "myqee/installer": "~4.1",
+    "myqee/database": "dev-master"
   }
 }
