@@ -1,34 +1,39 @@
 <?php
+
+namespace MyQEE\Database\MongoDB;
+
+use \ArrayIterator;
+
 /**
  * 数据库MySQL返回对象
  *
  * @author     呼吸二氧化碳 <jonwang@myqee.com>
- * @category   Driver
- * @package    Database
- * @subpackage Mongo
+ * @category   Database
+ * @package    Driver
+ * @subpackage MongoDB
  * @copyright  Copyright (c) 2008-2016 myqee.com
  * @license    http://www.myqee.com/license.html
  */
-class Driver_Database_Driver_Mongo_Result extends Database_Result
+class Result extends \MyQEE\Database\Result
 {
-    protected function release_resource()
+    protected function releaseResource()
     {
-        $this->_result = null;
+        $this->result = null;
     }
 
-    protected function total_count()
+    protected function totalCount()
     {
-        if ($this->_result instanceof ArrayIterator)
+        if ($this->result instanceof ArrayIterator)
         {
-            $count = $this->_result->count();
+            $count = $this->result->count();
         }
-        elseif ($this->_result)
+        elseif ($this->result)
         {
-            $count = $this->_result->count(true);
+            $count = $this->result->count(true);
         }
         else
         {
-            $count = count($this->_data);
+            $count = count($this->data);
         }
 
         if (!$count>0)$count = 0;
@@ -38,15 +43,15 @@ class Driver_Database_Driver_Mongo_Result extends Database_Result
 
     public function seek($offset)
     {
-        if (isset($this->_data[$offset]))
+        if (isset($this->data[$offset]))
         {
             return true;
         }
-        elseif ($this->_result instanceof ArrayIterator)
+        elseif ($this->result instanceof ArrayIterator)
         {
             if ($this->offsetExists($offset))
             {
-                $this->_result->seek($offset);
+                $this->result->seek($offset);
                 return true;
             }
             else
@@ -57,26 +62,27 @@ class Driver_Database_Driver_Mongo_Result extends Database_Result
 
         if ($this->offsetExists($offset))
         {
-            if ($this->_internal_row < $this->_current_row)
+            if ($this->internalRow < $this->currentRow)
             {
-                $c = $this->_internal_row - $this->_current_row;
-                for( $i=0;$i<$c;$i++ )
+                $c = $this->internalRow - $this->currentRow;
+                for($i=0; $i < $c; $i++)
                 {
-                    $this->_result->next();
+                    $this->result->next();
                 }
             }
             else
             {
                 // 小于当前指针，则回退重新来过，因为目前 MongoCursor 还没有回退的功能
-                $this->_result->rewind();
-                $c = $this->_current_row - $this->_internal_row;
-                for($i=0; $i<$c; $i++)
+                $this->result->rewind();
+                $c = $this->currentRow - $this->internalRow;
+
+                for($i=0; $i < $c; $i++)
                 {
-                    $this->_result->next();
+                    $this->result->next();
                 }
             }
 
-            $this->_current_row = $this->_internal_row = $offset;
+            $this->currentRow = $this->internalRow = $offset;
 
             return true;
         }
@@ -86,23 +92,23 @@ class Driver_Database_Driver_Mongo_Result extends Database_Result
         }
     }
 
-    protected function fetch_assoc()
+    protected function fetchAssoc()
     {
-        if ($this->_result instanceof ArrayIterator)
+        if ($this->result instanceof ArrayIterator)
         {
-            $data = $this->_result->current();
-            $this->_result->next();
+            $data = $this->result->current();
+            $this->result->next();
 
             return $data;
         }
 
-        $data = $this->_result->getNext();
-        if (isset($data['_id']) && is_object($data['_id']) && $data['_id'] instanceof MongoId)
+        $data = $this->result->getNext();
+        if (isset($data['_id']) && is_object($data['_id']) && $data['_id'] instanceof \MongoId)
         {
             $data['_id'] = (string)$data['_id'];
         }
 
-        if ( isset($this->_query['select_as']) )foreach ($this->_query['select_as'] as $key=>$value)
+        if (isset($this->query['select_as']))foreach ($this->query['select_as'] as $key => $value)
         {
             // 对查询出的数据做select as转换
             if (isset($data[$key]))
@@ -122,9 +128,9 @@ class Driver_Database_Driver_Mongo_Result extends Database_Result
      */
     public function snapshot()
     {
-        if ($this->_result && !($this->_result instanceof ArrayIterator))
+        if ($this->result && !($this->result instanceof ArrayIterator))
         {
-            $this->_result->snapshot();
+            $this->result->snapshot();
         }
 
         return $this;
