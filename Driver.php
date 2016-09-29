@@ -56,56 +56,6 @@ class Driver extends \MyQEE\Database\Driver
      */
     protected static $currentConnectionIdToHostname = [];
 
-    /**
-     * 连接数据库
-     *
-     * $use_connection_type 默认不传为自动判断，可传true/false,若传字符串(只支持a-z0-9的字符串)，则可以切换到另外一个连接，比如传other,则可以连接到$this->_connection_other_id所对应的ID的连接
-     *
-     * @param boolean $useConnectionType 是否使用主数据库
-     */
-    public function connect($useConnectionType = null)
-    {
-        if (null !== $useConnectionType)
-        {
-            $this->setConnectionType($useConnectionType);
-        }
-
-        $connectionId = $this->connectionId();
-
-        if (!$connectionId || !isset(static::$connectionInstance[$connectionId]))
-        {
-            $this->doConnect();
-        }
-
-        # 设置编码
-        $this->setCharset($this->config['charset']);
-
-        # 切换表
-        $this->selectDatabase($this->config['connection']['database']);
-    }
-
-    /**
-     * 获取当前连接
-     *
-     * @return \MongoDB
-     */
-    public function connection()
-    {
-        # 尝试连接数据库
-        $this->connect();
-
-        # 获取连接ID
-        $connection_id = $this->connectionId();
-
-        if ($connection_id && isset(static::$connectionInstanceDB[$connection_id]))
-        {
-            return static::$connectionInstanceDB[$connection_id];
-        }
-        else
-        {
-            throw new Exception('数据库连接异常');
-        }
-    }
 
     protected function doConnect()
     {
@@ -123,10 +73,10 @@ class Driver extends \MyQEE\Database\Driver
         $last_error = null;
         while (true)
         {
-            $hostname = $this->getRandHost($error_host);
+            $hostname = $this->getRandClusterHost($error_host);
             if (false === $hostname)
             {
-                if (HAVE_MYQEE_CORE && IS_DEBUG)Core::debug()->warn($error_host, 'error_host');
+                if (INCLUDE_MYQEE_CORE && IS_DEBUG)Core::debug()->warn($error_host, 'error_host');
 
                 if ($last_error && $last_error instanceof Exception)throw $last_error;
                 throw new Exception(__('connect mongodb server error.'));
@@ -188,7 +138,7 @@ class Driver extends \MyQEE\Database\Driver
 
                 if (false === $tmpLink)
                 {
-                    if (HAVE_MYQEE_CORE && IS_DEBUG)
+                    if (INCLUDE_MYQEE_CORE && IS_DEBUG)
                     {
                         throw $e;
                     }
@@ -216,7 +166,7 @@ class Driver extends \MyQEE\Database\Driver
             }
             catch (Exception $e)
             {
-                if (HAVE_MYQEE_CORE && IS_DEBUG)
+                if (INCLUDE_MYQEE_CORE && IS_DEBUG)
                 {
                     Core::debug()->error(($username?$username.'@':'').$hostname.':'.$port, 'connect mongodb server error');
                     $last_error = new Exception($e->getMessage(), $e->getCode());
@@ -302,7 +252,7 @@ class Driver extends \MyQEE\Database\Driver
                 unset(static::$currentCharset[$connectionId]);
                 unset(static::$currentConnectionIdToHostname[$connectionId]);
 
-                if (HAVE_MYQEE_CORE && IS_DEBUG)Core::debug()->info('close '. $key .' mongo '. $id .' connection.');
+                if (INCLUDE_MYQEE_CORE && IS_DEBUG)Core::debug()->info('close '. $key .' mongo '. $id .' connection.');
             }
 
             $this->connectionIds[$key] = null;
@@ -340,7 +290,7 @@ class Driver extends \MyQEE\Database\Driver
                 static::$connectionInstanceDB[$connectionId] = $connection;
             }
 
-            if (HAVE_MYQEE_CORE && IS_DEBUG)
+            if (INCLUDE_MYQEE_CORE && IS_DEBUG)
             {
                 Core::debug()->log('mongodb change to database:'. $database);
             }
@@ -571,11 +521,6 @@ class Driver extends \MyQEE\Database\Driver
         return $value;
     }
 
-    public function quote_table($value)
-    {
-        return $value;
-    }
-
     /**
      * MongoDB 不需要处理
      *
@@ -610,17 +555,17 @@ class Driver extends \MyQEE\Database\Driver
      *
      * @param array $options
      * @param string $asObject 是否返回对象
-     * @param boolean $useMaster 是否使用主数据库，不设置则自动判断
+     * @param boolean $clusterName 是否使用主数据库，不设置则自动判断
      * @return Result
      */
-    public function query($options, $asObject = null, $useMaster = null)
+    public function query($options, $asObject = null, $clusterName = null)
     {
-        if (HAVE_MYQEE_CORE && IS_DEBUG)Core::debug()->log($options);
+        if (INCLUDE_MYQEE_CORE && IS_DEBUG)Core::debug()->log($options);
 
         if (is_string($options))
         {
             # 设置连接类型
-            $this->setConnectionType($useMaster);
+            $this->setConnectionType($clusterName);
 
             # 必需数组
             if (!is_array($asObject))$asObject = [];
@@ -629,10 +574,10 @@ class Driver extends \MyQEE\Database\Driver
             return $this->connection()->execute($options, $asObject);
         }
 
-        $type = $this->getQueryType($options, $useMaster);
+        $clusterName = $this->getQueryType($options, $clusterName);
 
         # 设置连接类型
-        $this->setConnectionType($useMaster);
+        $this->setConnectionType($clusterName);
 
         # 连接数据库
         $connection = $this->connection();
@@ -644,7 +589,7 @@ class Driver extends \MyQEE\Database\Driver
 
         $tableName = $this->config['table_prefix'] . $options['table'];
 
-        if(HAVE_MYQEE_CORE && IS_DEBUG)
+        if(INCLUDE_MYQEE_CORE && IS_DEBUG)
         {
             static $isSqlDebug = null;
 
@@ -661,7 +606,7 @@ class Driver extends \MyQEE\Database\Driver
 
         try
         {
-            switch ($type)
+            switch ($clusterName)
             {
                 case 'SELECT':
 
@@ -974,7 +919,7 @@ class Driver extends \MyQEE\Database\Driver
 
                         $lastQuery = 'db.'. $tableName .'.distinct('.$options['distinct'].', '.json_encode($options['where']).')';
 
-                        if(HAVE_MYQEE_CORE && IS_DEBUG && $isSqlDebug)
+                        if(INCLUDE_MYQEE_CORE && IS_DEBUG && $isSqlDebug)
                         {
                             $count = count($result['values']);
                         }
@@ -997,7 +942,7 @@ class Driver extends \MyQEE\Database\Driver
 
                         $result = $connection->selectCollection($tableName)->find($options['where'], (array)$options['select']);
 
-                        if(HAVE_MYQEE_CORE && IS_DEBUG && $isSqlDebug)
+                        if(INCLUDE_MYQEE_CORE && IS_DEBUG && $isSqlDebug)
                         {
                             $explain = $result->explain();
                             $count   = $result->count();
@@ -1045,10 +990,10 @@ class Driver extends \MyQEE\Database\Driver
                 case 'SAVE':
                 case 'INSERT':
                 case 'BATCHINSERT':
-                    $fun = strtolower($type);
+                    $fun = strtolower($clusterName);
                     $result = $connection->selectCollection($tableName)->$fun($options['data'], $options['options']);
 
-                    if ($type === 'BATCHINSERT')
+                    if ($clusterName === 'BATCHINSERT')
                     {
                         $count = count($options['data']);
                         # 批量插入
@@ -1075,7 +1020,7 @@ class Driver extends \MyQEE\Database\Driver
                         ];
                     }
 
-                    if ($type === 'BATCHINSERT')
+                    if ($clusterName === 'BATCHINSERT')
                     {
                         $lastQuery = '';
                         foreach ($options['data'] as $d)
@@ -1103,7 +1048,7 @@ class Driver extends \MyQEE\Database\Driver
         }
         catch (Exception $e)
         {
-            if(HAVE_MYQEE_CORE && IS_DEBUG && isset($benchmark))
+            if(INCLUDE_MYQEE_CORE && IS_DEBUG && isset($benchmark))
             {
                 Core::debug()->profiler('sql')->stop();
             }
@@ -1114,7 +1059,7 @@ class Driver extends \MyQEE\Database\Driver
         $this->lastQuery = $lastQuery;
 
         # 记录调试
-        if(HAVE_MYQEE_CORE && IS_DEBUG)
+        if(INCLUDE_MYQEE_CORE && IS_DEBUG)
         {
             Core::debug()->info($lastQuery, 'MongoDB');
 

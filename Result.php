@@ -16,29 +16,9 @@ use \ArrayIterator;
  */
 class Result extends \MyQEE\Database\Result
 {
-    protected function releaseResource()
+    public function free()
     {
         $this->result = null;
-    }
-
-    protected function totalCount()
-    {
-        if ($this->result instanceof ArrayIterator)
-        {
-            $count = $this->result->count();
-        }
-        elseif ($this->result)
-        {
-            $count = $this->result->count(true);
-        }
-        else
-        {
-            $count = count($this->data);
-        }
-
-        if (!$count>0)$count = 0;
-
-        return $count;
     }
 
     public function seek($offset)
@@ -92,7 +72,7 @@ class Result extends \MyQEE\Database\Result
         }
     }
 
-    protected function fetchAssoc()
+    public function fetchAssoc()
     {
         if ($this->result instanceof ArrayIterator)
         {
@@ -134,5 +114,25 @@ class Result extends \MyQEE\Database\Result
         }
 
         return $this;
+    }
+
+    protected function totalCount()
+    {
+        if ($this->result instanceof ArrayIterator)
+        {
+            $count = $this->result->count();
+        }
+        elseif ($this->result)
+        {
+            $count = $this->result->count(true);
+        }
+        else
+        {
+            $count = count($this->data);
+        }
+
+        if (!$count>0)$count = 0;
+
+        return $count;
     }
 }
