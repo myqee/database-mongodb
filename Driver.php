@@ -56,8 +56,19 @@ class Driver extends \MyQEE\Database\Driver
      */
     protected static $currentConnectionIdToHostname = [];
 
+    /**
+     * 检查连接（每5秒钟间隔才检测）
+     *
+     * @param $id
+     * @param int $limit 时间间隔（秒）, 0 表示一直检查
+     * @return bool
+     */
+    protected function checkConnect($id, $limit = 5)
+    {
+        return true;
+    }
 
-    protected function doConnect()
+    protected function doConnect(array $config)
     {
         if ($this->tryUseExistsConnection())
         {
