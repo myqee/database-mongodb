@@ -18,7 +18,8 @@
   "require": {
     "php": ">=5.4.0",
     "myqee/installer": "~4.1",
-    "myqee/database": "~4.1"
+    "myqee/database": "~4.1",
+    "mongodb/mongodb": "~1.0"
   },
   "require-dev": {
     "myqee/installer": "~4.1",
