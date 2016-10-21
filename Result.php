@@ -5,13 +5,13 @@ namespace MyQEE\Database\MongoDB;
 use \ArrayIterator;
 
 /**
- * 数据库MySQL返回对象
+ * 数据库MongoDB返回对象
  *
  * @author     呼吸二氧化碳 <jonwang@myqee.com>
  * @category   Database
  * @package    Driver
  * @subpackage MongoDB
- * @copyright  Copyright (c) 2008-2016 myqee.com
+ * @copyright  Copyright (c) 2008-2017 myqee.com
  * @license    http://www.myqee.com/license.html
  */
 class Result extends \MyQEE\Database\Result
@@ -45,7 +45,7 @@ class Result extends \MyQEE\Database\Result
             if ($this->internalRow < $this->currentRow)
             {
                 $c = $this->internalRow - $this->currentRow;
-                for($i=0; $i < $c; $i++)
+                for($i = 0; $i < $c; $i++)
                 {
                     $this->result->next();
                 }
@@ -56,7 +56,7 @@ class Result extends \MyQEE\Database\Result
                 $this->result->rewind();
                 $c = $this->currentRow - $this->internalRow;
 
-                for($i=0; $i < $c; $i++)
+                for($i = 0; $i < $c; $i++)
                 {
                     $this->result->next();
                 }

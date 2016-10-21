@@ -6,13 +6,13 @@ use \ArrayIterator;
 use \MyQEE\Database\Expression;
 
 /**
- * 数据库Mongo驱动
+ * 数据库 MongoDB 驱动, 兼容 php5 的 MongoClient
  *
  * @author     呼吸二氧化碳 <jonwang@myqee.com>
  * @category   Database
  * @package    Driver
  * @subpackage MongoDB
- * @copyright  Copyright (c) 2008-2015 myqee.com
+ * @copyright  Copyright (c) 2008-2017 myqee.com
  * @license    http://www.myqee.com/license.html
  */
 class Driver extends \MyQEE\Database\Driver
@@ -25,10 +25,11 @@ class Driver extends \MyQEE\Database\Driver
     protected $defaultPort = 27017;
 
     /**
-     * 记录当前连接所对应的数据库
-     * @var array
+     * 当前所在表
+     *
+     * @var string
      */
-    protected static $currentDatabases = [];
+    protected $database = 'test';
 
     /**
      * 记录当前数据库所对应的页面编码
@@ -57,6 +58,13 @@ class Driver extends \MyQEE\Database\Driver
     protected static $currentConnectionIdToHostname = [];
 
     /**
+     * 是否新的 MongoDB 驱动
+     *
+     * @var bool
+     */
+    protected static $isMongoDB;
+
+    /**
      * 检查连接（每5秒钟间隔才检测）
      *
      * @param $id
@@ -68,205 +76,86 @@ class Driver extends \MyQEE\Database\Driver
         return true;
     }
 
-    protected function doConnect(array $config)
+    protected function doConnect(array & $config)
     {
-        if ($this->tryUseExistsConnection())
+        static $check = null;
+
+        if (Func::isMongoDB())
         {
-            return;
+            $class = '\\MongoDB\\Driver\\Manager';
+        }
+        else
+        {
+            $class = '\\MongoClient';
         }
 
-        $database = $hostname = $port = $username = $password = $persistent = $readpreference = null;
-        extract($this->config['connection']);
-
-        # 错误服务器
-        static $error_host = array();
-
-        $last_error = null;
-        while (true)
+        if (null === $check)
         {
-            $hostname = $this->getRandClusterHost($error_host);
-            if (false === $hostname)
+            $check = true;
+
+            if (!class_exists($class, false))
             {
-                if (INCLUDE_MYQEE_CORE && IS_DEBUG)Core::debug()->warn($error_host, 'error_host');
-
-                if ($last_error && $last_error instanceof Exception)throw $last_error;
-                throw new Exception(__('connect mongodb server error.'));
-            }
-
-            $connectionId = $this->getConnectionHash($hostname, $port, $username);
-            static::$currentConnectionIdToHostname[$connectionId] = $hostname.':'.$port;
-
-            try
-            {
-                $time = microtime(true);
-
-                $options = [
-                    'slaveOkay' => true,        //在从数据库可以查询，避免出现 Cannot run command count(): not master 的错误
-                ];
-
-                // 长连接设计
-                if ($persistent)
-                {
-                    $options['persist'] = is_string($persistent) ? $persistent : 'x';
-                }
-
-                static $check = null;
-
-                if (null === $check)
-                {
-                    $check = true;
-
-                    if (!class_exists('\\MongoClient', false))
-                    {
-                        if (class_exists('\\Mongo', false))
-                        {
-                            throw new Exception(__('your mongoclient version is too low.'));
-                        }
-                        else
-                        {
-                            throw new Exception(__('You do not have to install mongodb extension,see http://php.net/manual/zh/mongo.installation.php'));
-                        }
-                    }
-                }
-
-                $error_code = 0;
-                try
-                {
-                    if ($username)
-                    {
-                        $tmpLink = new \MongoClient("mongodb://{$username}:{$password}@{$hostname}:{$port}/", $options);
-                    }
-                    else
-                    {
-                        $tmpLink = new \MongoClient("mongodb://{$hostname}:{$port}/", $options);
-                    }
-                }
-                catch (Exception $e)
-                {
-                    $error_code = $e->getCode();
-                    $tmpLink    = false;
-                }
-
-                if (false === $tmpLink)
-                {
-                    if (INCLUDE_MYQEE_CORE && IS_DEBUG)
-                    {
-                        throw $e;
-                    }
-                    else
-                    {
-                        $error_msg = 'connect mongodb server error.';
-                    }
-                    throw new Exception($error_msg, $error_code);
-                }
-
-                if (null !== $readpreference)
-                {
-                    $tmpLink->setReadPreference($readpreference);
-                }
-
-                Core::debug()->info('MongoDB '. ($username ? $username .'@' : ''). $hostname .':'. $port .' connection time:' . (microtime(true) - $time));
-
-                # 连接ID
-                $this->connectionIds[$this->connectionType] = $connectionId;
-                static::$connectionInstance[$connectionId]  = $tmpLink;
-
-                unset($tmpLink);
-
-                break;
-            }
-            catch (Exception $e)
-            {
-                if (INCLUDE_MYQEE_CORE && IS_DEBUG)
-                {
-                    Core::debug()->error(($username?$username.'@':'').$hostname.':'.$port, 'connect mongodb server error');
-                    $last_error = new Exception($e->getMessage(), $e->getCode());
-                }
-                else
-                {
-                    $last_error = new Exception('connect mongodb server error', $e->getCode());
-                }
-
-                if (!in_array($hostname, $error_host))
-                {
-                    $error_host[] = $hostname;
-                }
+                throw new Exception(__('You do not have to install MongoDB extension, see http://php.net/manual/zh/mongodb.installation.php'));
             }
         }
+
+        $options = [
+            'slaveOkay'       => true,        //在从数据库可以查询，避免出现 Cannot run command count(): not master 的错误
+            'socketTimeoutMS' => 60000        //连接超时，默认60s
+        ];
+
+        // 长连接设计
+        if ($config['persistent'])
+        {
+            $options['persist'] = is_string($config['persistent']) ? $config['persistent'] : 'x';
+        }
+
+        if ($config['username'])
+        {
+            $tmpLink = new $class("mongodb://{$config['username']}:{$config['password']}@{$config['hostname']}:{$config['port']}/", $options);
+        }
+        else
+        {
+            $tmpLink = new $class("mongodb://{$config['hostname']}:{$config['port']}/", $options);
+        }
+
+        if (!isset($config['readPreference']))
+        {
+            /**
+             * @var \MongoDB\Driver\Manager $tmpLink
+             */
+            $config['readPreference'] = $tmpLink->getReadPreference();
+        }
+
+        if (isset($config['database']) && $config['database'])
+        {
+            # 切换库
+            $this->selectDB($config['database']);
+        }
+
+        # Core::debug()->info('MongoDB '. ($username ? $username .'@' : ''). $hostname .':'. $port .' connection time:' . (microtime(true) - $time));
+
+        return $tmpLink;
     }
 
-    /**
-     * @return bool
-     * @throws Exception
-     */
-    protected function tryUseExistsConnection()
-    {
-        # 检查下是否已经有连接连上去了
-        if (static::$connectionInstance)
-        {
-            $hostname = $this->config['connection']['hostname'];
-
-            if (is_array($hostname))
-            {
-                $hostConfig = $hostname[$this->connectionType];
-
-                if (!$hostConfig)
-                {
-                    throw new Exception('指定的数据库连接主从配置中('.$this->connectionType.')不存在，请检查配置');
-                }
-
-                if (!is_array($hostConfig))
-                {
-                    $hostConfig = [$hostConfig];
-                }
-            }
-            else
-            {
-                $hostConfig = [$hostname];
-            }
-
-            # 先检查是否已经有相同的连接连上了数据库
-            foreach ($hostConfig as $host)
-            {
-                $connectionId = $this->getConnectionHash($host, $this->config['connection']['port'], $this->config['connection']['username']);
-
-                if (isset(static::$connectionInstance[$connectionId]))
-                {
-                    $this->connectionIds[$this->connectionType] = $connectionId;
-
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
 
     /**
      * 关闭链接
      */
     public function closeConnect()
     {
-        if ($this->connectionIds)foreach ($this->connectionIds as $key => $connectionId)
+        if ($this->connections)
         {
-            if ($connectionId && static::$connectionInstance[$connectionId])
-            {
-                $id = static::$currentConnectionIdToHostname[$connectionId];
+            //if(INCLUDE_MYQEE_CORE && IS_DEBUG)
+            //{
+            //    foreach ($this->connections as $key => $connection)
+            //    {
+            //        Core::debug()->info('close '. $key .' connection.');
+            //    }
+            //}
 
-                # 销毁对象
-                static::$connectionInstance[$connectionId]    = null;
-                static::$connectionInstanceDB[$connectionId] = null;
-
-                unset(static::$connectionInstance[$connectionId]);
-                unset(static::$connectionInstanceDB[$connectionId]);
-                unset(static::$currentDatabases[$connectionId]);
-                unset(static::$currentCharset[$connectionId]);
-                unset(static::$currentConnectionIdToHostname[$connectionId]);
-
-                if (INCLUDE_MYQEE_CORE && IS_DEBUG)Core::debug()->info('close '. $key .' mongo '. $id .' connection.');
-            }
-
-            $this->connectionIds[$key] = null;
+            $this->connectionId = null;
+            $this->connections  = [];
         }
     }
 
@@ -274,41 +163,23 @@ class Driver extends \MyQEE\Database\Driver
      * 切换表
      *
      * @param string $database Database
-     * @return void
+     * @return bool
      */
-    public function selectDatabase($database)
+    public function selectDB($database)
     {
-        if (!$database)return;
+        if (!$database)return false;
 
-        $connectionId = $this->connectionId();
+        if (!$this->connectionId)return false;
 
-        if (!$connectionId || !isset(static::$currentDatabases[$connectionId]) || $database !== static::$currentDatabases[$connectionId])
+        $connection = $this->connections[$this->connectionId];
+
+        if ($connection['database'] !== $database)
         {
-            if (!static::$connectionInstance[$connectionId])
-            {
-                $this->connect();
-                $this->selectDatabase($database);
-                return;
-            }
-
-            $connection = static::$connectionInstance[$connectionId]->selectDB($database);
-            if (!$connection)
-            {
-                throw new Exception('选择Mongo数据表错误');
-            }
-            else
-            {
-                static::$connectionInstanceDB[$connectionId] = $connection;
-            }
-
-            if (INCLUDE_MYQEE_CORE && IS_DEBUG)
-            {
-                Core::debug()->log('mongodb change to database:'. $database);
-            }
-
-            # 记录当前已选中的数据库
-            static::$currentDatabases[$connectionId] = $database;
+            $this->connections[$this->connectionId]['database'] = $database;
+            $this->database = $database;
         }
+
+        return true;
     }
 
     public function compile($builder, $type = 'select')
@@ -433,7 +304,7 @@ class Driver extends \MyQEE\Database\Driver
 
             if ($builder['distinct'])
             {
-                $sql['distinct'] = $builder['distinct'];
+                $sql['distinct'] = $builder['distinct'] === true ? '_id' : $builder['distinct'];
             }
 
             // 查询
@@ -460,7 +331,7 @@ class Driver extends \MyQEE\Database\Driver
                         if ($item instanceof Expression)
                         {
                             $v = $item->value();
-                            if ($v==='COUNT(1) AS `total_row_count`')
+                            if ($v === 'COUNT(1) AS `total_row_count`')
                             {
                                 $sql['total_count'] = true;
                             }
@@ -554,7 +425,7 @@ class Driver extends \MyQEE\Database\Driver
      */
     public function execute($statement, array $inputParameters, $asObject = null, $connectionType = null)
     {
-
+        throw new Exception('MongoDB statement not support.');
     }
 
     /**
@@ -562,62 +433,59 @@ class Driver extends \MyQEE\Database\Driver
      *
      * 目前支持插入、修改、保存（类似mysql的replace）查询
      *
-     * $use_connection_type 默认不传为自动判断，可传true/false,若传字符串(只支持a-z0-9的字符串)，则可以切换到另外一个连接，比如传other,则可以连接到$this->_connection_other_id所对应的ID的连接
-     *
      * @param array $options
-     * @param string $asObject 是否返回对象
-     * @param boolean $clusterName 是否使用主数据库，不设置则自动判断
+     * @param string $asObject 是否返回对象, 若 $options 为一个字符, 则此参数可以传 array
+     * @param string $clusterName 集群名称（例如 slave, master）, 不设置则使用当前设置
      * @return Result
      */
     public function query($options, $asObject = null, $clusterName = null)
     {
-        if (INCLUDE_MYQEE_CORE && IS_DEBUG)Core::debug()->log($options);
-
-        if (is_string($options))
-        {
-            # 设置连接类型
-            $this->setConnectionType($clusterName);
-
-            # 必需数组
-            if (!is_array($asObject))$asObject = [];
-
-            # 执行字符串式查询语句
-            return $this->connection()->execute($options, $asObject);
-        }
+        //if (INCLUDE_MYQEE_CORE && IS_DEBUG)
+        //{
+        //    Core::debug()->log($options);
+        //}
 
         $clusterName = $this->getQueryType($options, $clusterName);
 
-        # 设置连接类型
-        $this->setConnectionType($clusterName);
+        /**
+         * @var Func $connection
+         */
+        $connection = $this->connection($clusterName);
 
-        # 连接数据库
-        $connection = $this->connection();
+        if (is_string($options))
+        {
+            # 必需数组
+            if (!is_array($asObject))$asObject = [];
+
+            return $connection->command($options, $asObject);
+        }
 
         if (!$options['table'])
         {
             throw new Exception('查询条件中缺少Collection');
         }
 
-        $tableName = $this->config['table_prefix'] . $options['table'];
+        $collection = $this->config['table_prefix'] . $options['table'];
 
-        if(INCLUDE_MYQEE_CORE && IS_DEBUG)
-        {
-            static $isSqlDebug = null;
-
-            if (null === $isSqlDebug) $isSqlDebug = (bool)Core::debug()->profiler('sql')->isOpen();
-
-            if ($isSqlDebug)
-            {
-                $host      = $this->getHostnameByConnectionHash($this->connectionId());
-                $benchmark = Core::debug()->profiler('sql')->start('Database', 'mongodb://'.($host['username']?$host['username'].'@':'') . $host['hostname'] . ($host['port'] && $host['port'] != '27017' ? ':' . $host['port'] : ''));
-            }
-        }
+        // TODO
+        //if(INCLUDE_MYQEE_CORE && IS_DEBUG)
+        //{
+        //    static $isSqlDebug = null;
+        //
+        //    if (null === $isSqlDebug) $isSqlDebug = (bool)Core::debug()->profiler('sql')->isOpen();
+        //
+        //    if ($isSqlDebug)
+        //    {
+        //        $host      = $this->getHostnameByConnectionHash($this->connectionId());
+        //        $benchmark = Core::debug()->profiler('sql')->start('Database', 'mongodb://'.($host['username']?$host['username'].'@':'') . $host['hostname'] . ($host['port'] && $host['port'] != '27017' ? ':' . $host['port'] : ''));
+        //    }
+        //}
 
         $explain = null;
 
         try
         {
-            switch ($clusterName)
+            switch($clusterName)
             {
                 case 'SELECT':
 
@@ -654,12 +522,10 @@ class Driver extends \MyQEE\Database\Driver
                             }
                         }
 
-                        $lastQuery = 'db.'. $tableName .'.aggregate(';
-                        $ops       = [];
+                        $pipeline = [];
                         if ($options['where'])
                         {
-                            $lastQuery .= '{$match:'.json_encode($options['where']).'}';
-                            $ops[] = [
+                            $pipeline[] = [
                                 '$match' => $options['where']
                             ];
                         }
@@ -667,7 +533,7 @@ class Driver extends \MyQEE\Database\Driver
                         $groupOpt['_count'] = ['$sum' => 1];
                         if ($select)
                         {
-                            foreach ($select as $k=>$v)
+                            foreach ($select as $k => $v)
                             {
                                 if (1 === $v || true === $v)
                                 {
@@ -692,7 +558,7 @@ class Driver extends \MyQEE\Database\Driver
                                     }
                                     else
                                     {
-                                        $groupOpt[$v] = ['$first'=>'$'.$k];
+                                        $groupOpt[$v] = ['$first' => '$'.$k];
                                     }
                                 }
                             }
@@ -808,18 +674,14 @@ class Driver extends \MyQEE\Database\Driver
                                 '$addToSet' => '$' . $options['distinct'],
                             ];
 
-                            $ops[] = [
+                            $pipeline[] = [
                                 '$group' => $groupOpt,
                             ];
 
-                            $lastQuery .= ', {$group:'.json_encode($groupOpt).'}';
 
-
-                            $ops[] = [
+                            $pipeline[] = [
                                 '$unwind' => '$_distinct_'.$options['distinct']
                             ];
-
-                            $lastQuery .= ', {$unwind:"$_distinct_'.$options['distinct'].'"}';
 
                             $groupDistinct = [];
 
@@ -827,9 +689,9 @@ class Driver extends \MyQEE\Database\Driver
                             foreach($groupOpt as $k => $v)
                             {
                                 # 临时统计的忽略
-                                if ($k=='_distinct_'.$options['distinct'])continue;
+                                if ($k === '_distinct_'. $options['distinct'])continue;
 
-                                if ($k=='_id')
+                                if ($k === '_id')
                                 {
                                     $groupDistinct[$k] = '$'.$k;
                                 }
@@ -842,41 +704,34 @@ class Driver extends \MyQEE\Database\Driver
                                 '$sum' => 1
                             ];
 
-                            $ops[] = [
+                            $pipeline[] = [
                                 '$group' => $groupDistinct
                             ];
-                            $lastQuery .= ', {$group:'. json_encode($groupDistinct) .'}';
                         }
                         else
                         {
-                            $ops[] = [
+                            $pipeline[] = [
                                 '$group' => $groupOpt,
                             ];
-
-                            $lastQuery .= ', {$group:'.json_encode($groupOpt).'}';
                         }
 
                         if (isset($options['sort']) && $options['sort'])
                         {
-                            $ops[]['$sort'] = $options['sort'];
-                            $lastQuery .= ', {$sort:'.json_encode($options['sort']).'}';
+                            $pipeline[]['$sort'] = $options['sort'];
                         }
 
                         if (isset($options['skip']) && $options['skip'] > 0)
                         {
-                            $ops[]['$skip'] = $options['skip'];
-                            $lastQuery .= ', {$skip:'.$options['skip'].'}';
+                            $pipeline[]['$skip'] = $options['skip'];
                         }
 
                         if (isset($options['limit']) && $options['limit'] > 0)
                         {
-                            $ops[]['$limit'] = $options['limit'];
-                            $lastQuery .= ', {$limit:'.$options['limit'].'}';
+                            $pipeline[]['$limit'] = $options['limit'];
                         }
 
-                        $lastQuery .= ')';
-
-                        $result = $connection->selectCollection($tableName)->aggregate($ops);
+                        $lastQuery = 'db.'. $collection .'.aggregate(' . json_encode($pipeline, JSON_UNESCAPED_UNICODE) .')';
+                        $result    = $connection->aggregate($pipeline, $collection);
 
                         // 兼容不同版本的aggregate返回
                         if ($result && ($result['ok'] == 1 || !isset($result['errmsg'])))
@@ -910,7 +765,7 @@ class Driver extends \MyQEE\Database\Driver
                                     $item['total_count'] = $item['_count'];
                                 }
                             }
-                            $count = count($result);
+                            //$count = count($result);
 
                             $rs = new Result(new ArrayIterator($result), $options, $asObject, $this->config);
                         }
@@ -922,20 +777,20 @@ class Driver extends \MyQEE\Database\Driver
                     else if ($options['distinct'])
                     {
                         # 查询唯一值
+                        $lastQuery = 'db.'. $collection .'.distinct('.$options['distinct'].', '.json_encode($options['where'], JSON_UNESCAPED_UNICODE).')';
                         $result = $connection->command([
-                            'distinct' => $tableName,
+                            'distinct' => $collection,
                             'key'      => $options['distinct'] ,
                             'query'    => $options['where']
                         ]);
 
-                        $lastQuery = 'db.'. $tableName .'.distinct('.$options['distinct'].', '.json_encode($options['where']).')';
 
-                        if(INCLUDE_MYQEE_CORE && IS_DEBUG && $isSqlDebug)
-                        {
-                            $count = count($result['values']);
-                        }
+                        //if(INCLUDE_MYQEE_CORE && IS_DEBUG && $isSqlDebug)
+                        //{
+                        //    $count = count($result['values']);
+                        //}
 
-                        if ($result && $result['ok']==1)
+                        if ($result && $result['ok'] == 1)
                         {
                             $rs = new Result(new ArrayIterator($result['values']), $options, $asObject, $this->config);
                         }
@@ -946,111 +801,87 @@ class Driver extends \MyQEE\Database\Driver
                     }
                     else
                     {
-                        $lastQuery  = 'db.'. $tableName .'.find(';
-                        $lastQuery .= $options['where'] ? json_encode($options['where']) : '{}';
-                        $lastQuery .= $options['select'] ? ', '.json_encode($options['select']) : '';
+                        $lastQuery  = 'db.'. $collection .'.find(';
+                        $lastQuery .= $options['where'] ? json_encode($options['where'], JSON_UNESCAPED_UNICODE) : '{}';
+                        $lastQuery .= $options['select'] ? ', '. json_encode($options['select'], JSON_UNESCAPED_UNICODE) : '';
                         $lastQuery .= ')';
-
-                        $result = $connection->selectCollection($tableName)->find($options['where'], (array)$options['select']);
-
-                        if(INCLUDE_MYQEE_CORE && IS_DEBUG && $isSqlDebug)
-                        {
-                            $explain = $result->explain();
-                            $count   = $result->count();
-                        }
 
                         if ($options['total_count'])
                         {
                             $lastQuery .= '.count()';
-                            $result     = $result->count();
+                            $result = $connection->selectCollection($collection)->count($options['where']);
                             # 仅统计count
-                            $rs         = new Result(new ArrayIterator(array(array('total_row_count'=>$result))), $options, $asObject, $this->config);
+                            $rs = new Result(new ArrayIterator([['total_row_count' => $result]]), $options, $asObject, $this->config);
                         }
                         else
                         {
+                            $opt = [];
+
                             if ($options['sort'])
                             {
-                                $lastQuery .= '.sort('.json_encode($options['sort']).')';
-                                $result     = $result->sort($options['sort']);
+                                $opt['sort'] = $options['sort'];
+                                $lastQuery .= '.sort('. json_encode($options['sort']) .')';
                             }
 
                             if ($options['skip'])
                             {
-                                $lastQuery .= '.skip('.json_encode($options['skip']).')';
-                                $result     = $result->skip($options['skip']);
+                                $opt['skip'] = $options['skip'];
+                                $lastQuery .= '.skip('. json_encode($options['skip']) .')';
                             }
 
                             if ($options['limit'])
                             {
-                                $lastQuery .= '.limit('.json_encode($options['limit']).')';
-                                $result     = $result->limit($options['limit']);
+                                $opt['limit'] = $options['limit'];
+                                $lastQuery   .= '.limit('. json_encode($options['limit']) .')';
                             }
+                            $result = $connection->selectCollection($collection)->find($options['where'], (array)$options['select'], 60000, $opt);
+
+                            //if(IS_DEBUG && $isSqlDebug && !Func::isMongoDB())
+                            //{
+                            //    $explain = $result->explain();
+                            //    $count   = $result->count();
+                            //}
 
                             $rs = new Result($result, $options, $asObject, $this->config);
                         }
                     }
-
                     break;
 
                 case 'UPDATE':
-                    $result = $connection->selectCollection($tableName)->update($options['where'], $options['data'], $options['options']);
+                    $result = $connection->selectCollection($collection)->update($options['where'], $options['data'], $options['options']);
                     $count = $rs = $result['n'];
-                    $lastQuery = 'db.'.$tableName.'.update('.json_encode($options['where']).','.json_encode($options['data']).')';
+                    $lastQuery = 'db.'.$collection.'.update('. json_encode($options['where']) .','. json_encode($options['data']).')';
                     break;
 
-                case 'SAVE':
                 case 'INSERT':
+                    $lastQuery = 'db.'. $collection .'.insert('. json_encode($options['data'], JSON_UNESCAPED_UNICODE) .')';
+                    $rs        = $connection->selectCollection($collection)->insert($options['data'], $options['options']);
+                    $count     = $rs[1];
+                    break;
+
                 case 'BATCHINSERT':
-                    $fun = strtolower($clusterName);
-                    $result = $connection->selectCollection($tableName)->$fun($options['data'], $options['options']);
+                    # 批量插入
 
-                    if ($clusterName === 'BATCHINSERT')
+                    $lastQuery = '';
+                    foreach ($options['data'] as $d)
                     {
-                        $count = count($options['data']);
-                        # 批量插入
-                        $rs = array
-                        (
-                            '',
-                            $count,
-                        );
+                        $lastQuery .= 'db.'. $collection .'.insert('. json_encode($d, JSON_UNESCAPED_UNICODE) .');'."\n";
                     }
-                    elseif (isset($result['data']['_id']) && $result['data']['_id'] instanceof \MongoId)
-                    {
-                        $count = 1;
-                        $rs = [
-                            (string)$result['data']['_id'] ,
-                            1 ,
-                        ];
-                    }
-                    else
-                    {
-                        $count = 0;
-                        $rs = [
-                            '',
-                            0,
-                        ];
-                    }
+                    $lastQuery = trim($lastQuery);
 
-                    if ($clusterName === 'BATCHINSERT')
-                    {
-                        $lastQuery = '';
-                        foreach ($options['data'] as $d)
-                        {
-                            $lastQuery .= 'db.'.$tableName.'.insert('.json_encode($d).');'."\n";
-                        }
-                        $lastQuery = trim($lastQuery);
-                    }
-                    else
-                    {
-                        $lastQuery = 'db.'.$tableName.'.'.$fun.'('.json_encode($options['data']).')';
-                    }
+                    $result = $connection->selectCollection($collection)->batchInsert($options['data'], $options['options']);
+
+                    $rs = array
+                    (
+                        '',
+                        $result,
+                    );
                     break;
 
                 case 'REMOVE':
-                    $result = $connection->selectCollection($tableName)->remove($options['where']);
-                    $rs     = $result['n'];
+                    $rs = $count = $connection->selectCollection($collection)->remove($options['where']);
 
-                    $lastQuery = 'db.'.$tableName.'.remove('.json_encode($options['where']).')';
+                    $lastQuery = 'db.'. $collection .'.remove('. json_encode($options['where'], JSON_UNESCAPED_UNICODE) .')';
                     break;
 
                 default:
@@ -1059,10 +890,10 @@ class Driver extends \MyQEE\Database\Driver
         }
         catch (Exception $e)
         {
-            if(INCLUDE_MYQEE_CORE && IS_DEBUG && isset($benchmark))
-            {
-                Core::debug()->profiler('sql')->stop();
-            }
+            //if(INCLUDE_MYQEE_CORE && IS_DEBUG && isset($benchmark))
+            //{
+            //    Core::debug()->profiler('sql')->stop();
+            //}
 
             throw $e;
         }
@@ -1070,6 +901,7 @@ class Driver extends \MyQEE\Database\Driver
         $this->lastQuery = $lastQuery;
 
         # 记录调试
+        /*
         if(INCLUDE_MYQEE_CORE && IS_DEBUG)
         {
             Core::debug()->info($lastQuery, 'MongoDB');
@@ -1111,6 +943,7 @@ class Driver extends \MyQEE\Database\Driver
                 Core::debug()->profiler('sql')->stop($data);
             }
         }
+        */
 
         return $rs;
     }
@@ -1167,7 +1000,11 @@ class Driver extends \MyQEE\Database\Driver
         {
             if (is_object($value))
             {
-                if ($value instanceof \MongoCode)
+                if ($value instanceof \MongoDB\BSON\Javascript)
+                {
+                    $option['$where'] = $value;
+                }
+                elseif ($value instanceof \MongoCode)
                 {
                     $option['$where'] = $value;
                 }
@@ -1225,25 +1062,32 @@ class Driver extends \MyQEE\Database\Driver
 
             if (substr($value, 0, 1) === '%')
             {
-                $value = '/'. substr($value,1);
+                $value = substr($value, 1);
             }
             else
             {
-                $value = '/^'. $value;
+                $value = '^'. $value;
             }
 
             if (substr($value, -1) === '%')
             {
-                $value = substr($value, 0, -1) . '/i';
+                $value = substr($value, 0, -1);
             }
             else
             {
-                $value = $value .'$/i';
+                $value = $value .'$';
             }
 
             $value = str_replace('%', '*', $value);
 
-            $option = new \MongoRegex($value);
+            if (Func::isMongoDB())
+            {
+                $option = new \MongoDB\BSON\Regex($value, 'i');
+            }
+            else
+            {
+                $option = new \MongoRegex("/$value/i");
+            }
         }
         else
         {
@@ -1407,7 +1251,7 @@ class Driver extends \MyQEE\Database\Driver
                 }
                 else
                 {
-                    list ($column, $op, $value) = $condition;
+                    list($column, $op, $value) = $condition;
                     $tmp_option = $this->compileSetData($op, $value);
                     $this->compilePasteData($tmpQuery, $tmp_option, $lastLogic, $logic, $column);
 
@@ -1451,5 +1295,28 @@ class Driver extends \MyQEE\Database\Driver
         }
 
         return $type;
+    }
+
+    /**
+     * 获取一个MongoDB Server对象
+     *
+     * @return \MongoDB\Driver\Server
+     */
+    protected function getMongoDBServer()
+    {
+        if (isset($this->currentConnectionConfig['readPreference']))
+        {
+            $preference = $this->currentConnectionConfig['readPreference'];
+            $preference = new \MongoDB\Driver\ReadPreference($preference);
+        }
+        else
+        {
+            $preference = null;
+        }
+
+        /**
+         * @var \MongoDB\Driver\Manager $connection
+         */
+        return $connection->selectServer($preference);
     }
 }
