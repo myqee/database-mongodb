@@ -99,9 +99,17 @@ class Func
             ];
 
             $cursor = $this->command($cmd, $opt);
-            $cursor->setTypeMap(static::$defaultTypeMap);
-            $result       = current($cursor->toArray());
-            $result['ok'] = 1;
+
+            if (is_array($cursor))
+            {
+                $result = $cursor;
+            }
+            else
+            {
+                $cursor->setTypeMap(static::$defaultTypeMap);
+                $result       = current($cursor->toArray());
+                $result['ok'] = 1;
+            }
         }
         else
         {
