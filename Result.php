@@ -32,6 +32,8 @@ class Result extends \MyQEE\Database\Result
             if ($this->offsetExists($offset))
             {
                 $this->result->seek($offset);
+                $this->currentRow = $this->internalRow = $offset;
+
                 return true;
             }
             else

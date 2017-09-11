@@ -767,7 +767,7 @@ class Driver extends \MyQEE\Database\Driver
                             }
                             //$count = count($result);
 
-                            $rs = new Result(new ArrayIterator($result), $options, $asObject, $this->config);
+                            $rs = new Result(new ArrayIterator($result), $options, $asObject, $this->convertToUtf8FromCharset);
                         }
                         else
                         {
@@ -792,7 +792,7 @@ class Driver extends \MyQEE\Database\Driver
 
                         if ($result && $result['ok'] == 1)
                         {
-                            $rs = new Result(new ArrayIterator($result['values']), $options, $asObject, $this->config);
+                            $rs = new Result(new ArrayIterator($result['values']), $options, $asObject, $this->convertToUtf8FromCharset);
                         }
                         else
                         {
@@ -811,7 +811,7 @@ class Driver extends \MyQEE\Database\Driver
                             $lastQuery .= '.count()';
                             $result = $connection->selectCollection($collection)->count($options['where']);
                             # 仅统计count
-                            $rs = new Result(new ArrayIterator([['total_row_count' => $result]]), $options, $asObject, $this->config);
+                            $rs = new Result(new ArrayIterator([['total_row_count' => $result]]), $options, $asObject, $this->convertToUtf8FromCharset);
                         }
                         else
                         {
@@ -842,7 +842,7 @@ class Driver extends \MyQEE\Database\Driver
                             //    $count   = $result->count();
                             //}
 
-                            $rs = new Result($result, $options, $asObject, $this->config);
+                            $rs = new Result($result, $options, $asObject, $this->convertToUtf8FromCharset);
                         }
                     }
                     break;
