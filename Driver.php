@@ -140,21 +140,50 @@ class Driver extends \MyQEE\Database\Driver
 
 
     /**
+     * 连接数据库
+     *
+     * @param string $clusterName 集群名称（例如 slave, master）, 不设置则使用当前设置
+     * @throws \MyQEE\Database\Exception
+     */
+    public function connect($clusterName = null)
+    {
+        $id   = parent::connect($clusterName);
+        $link =& $this->connections[$id];
+
+        # 构造一个 Func 兼容处理对象
+        $link['func'] = new Func($link['resource'], $link['database']);
+
+        return $id;
+    }
+
+    /**
+     * 返回一个兼容方法的连接对象
+     *
+     * @param null $clusterName
+     * @return Func
+     */
+    public function connectionFunc($clusterName = null)
+    {
+        parent::connection($clusterName);
+        return $this->connections[$this->connectionId]['func'];
+    }
+
+    /**
      * 关闭链接
      */
     public function closeConnect()
     {
         if ($this->connections)
         {
-            //if(INCLUDE_MYQEE_CORE && IS_DEBUG)
-            //{
-            //    foreach ($this->connections as $key => $connection)
-            //    {
-            //        Core::debug()->info('close '. $key .' connection.');
-            //    }
-            //}
-
             $this->connectionId = null;
+            foreach ($this->connections as $link)
+            {
+                $resource = $link['resource'];
+                if (method_exists($resource, 'close'))
+                {
+                    $resource->close();
+                }
+            }
             $this->connections  = [];
         }
     }
@@ -450,7 +479,7 @@ class Driver extends \MyQEE\Database\Driver
         /**
          * @var Func $connection
          */
-        $connection = $this->connection($clusterName);
+        $connection = $this->connectionFunc($clusterName);
 
         if (is_string($options))
         {
