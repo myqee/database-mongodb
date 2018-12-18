@@ -362,7 +362,7 @@ class Driver extends \MyQEE\Database\Driver
                             $v = $item->value();
                             if ($v === 'COUNT(1) AS `total_row_count`')
                             {
-                                $sql['total_count'] = true;
+                                $sql['totalCount'] = true;
                             }
                             else
                             {
@@ -380,40 +380,40 @@ class Driver extends \MyQEE\Database\Driver
             }
 
             // 排序
-            if ($builder['order_by'])
+            if (isset($builder['orderBy']) && $builder['orderBy'])
             {
-                foreach ($builder['order_by'] as $item)
+                foreach ($builder['orderBy'] as $item)
                 {
                     $sql['sort'][$item[0]] = $item[1] === 'DESC' ? -1 : 1;
                 }
             }
 
             // group by
-            if ($builder['group_by'])
+            if (isset($builder['groupBy']) && $builder['groupBy'])
             {
-                $sql['group_by'] = $builder['group_by'];
+                $sql['groupBy'] = $builder['groupBy'];
             }
 
             // 高级查询条件
-            if ($builder['select_adv'])
+            if (isset($builder['selectAdv']) && $builder['selectAdv'])
             {
-                $sql['select_adv'] = $builder['select_adv'];
+                $sql['selectAdv'] = $builder['selectAdv'];
 
                 // 分组统计
-                if (!$builder['group_by'])
+                if (!$builder['groupBy'])
                 {
-                    $sql['group_by'] = ['0'];
+                    $sql['groupBy'] = ['0'];
                 }
             }
 
-            if ($builder['group_concat'])
+            if (isset($builder['groupConcat']) && $builder['groupConcat'])
             {
-                $sql['group_concat'] = $builder['group_concat'];
+                $sql['groupConcat'] = $builder['groupConcat'];
 
                 // 分组统计
-                if (!$builder['group_by'])
+                if (!$builder['groupBy'])
                 {
-                    $sql['group_by'] = ['0'];
+                    $sql['groupBy'] = ['0'];
                 }
             }
 
@@ -518,23 +518,23 @@ class Driver extends \MyQEE\Database\Driver
             {
                 case 'SELECT':
 
-                    if ($options['group_by'])
+                    if (isset($options['groupBy']) && $options['groupBy'])
                     {
                         $aliasKey = [];
 
                         $select = $options['select'];
                         # group by
                         $groupOpt = [];
-                        if (1 === count($options['group_by']))
+                        if (1 === count($options['groupBy']))
                         {
-                            $k = current($options['group_by']);
+                            $k = current($options['groupBy']);
                             $groupOpt['_id'] = '$'.$k;
                             if (!isset($select[$k]))$select[$k] = 1;
                         }
                         else
                         {
                             $groupOpt['_id'] = [];
-                            foreach ($options['group_by'] as $item)
+                            foreach ($options['groupBy'] as $item)
                             {
                                 if (false !== strpos($item, '.'))
                                 {
@@ -594,7 +594,7 @@ class Driver extends \MyQEE\Database\Driver
                         }
 
                         // 处理高级查询条件
-                        if ($options['select_adv'])foreach ($options['select_adv'] as $item)
+                        if ($options['selectAdv'])foreach ($options['selectAdv'] as $item)
                         {
                             if (!is_array($item))continue;
 
@@ -646,7 +646,7 @@ class Driver extends \MyQEE\Database\Driver
                             }
                         }
 
-                        if ($options['group_concat'])foreach($options['group_concat'] as $item)
+                        if ($options['groupConcat'])foreach($options['groupConcat'] as $item)
                         {
                             if (is_array($item[0]))
                             {
@@ -694,7 +694,7 @@ class Driver extends \MyQEE\Database\Driver
                             }
                         }
 
-                        if ($options['distinct'])
+                        if (isset($options['distinct']) && $options['distinct'])
                         {
                             # 唯一值
 
@@ -787,11 +787,11 @@ class Driver extends \MyQEE\Database\Driver
                                 }
                             }
 
-                            if ($options['total_count'])
+                            if ($options['totalCount'])
                             {
                                 foreach ($result as &$item)
                                 {
-                                    $item['total_count'] = $item['_count'];
+                                    $item['totalCount'] = $item['_count'];
                                 }
                             }
                             //$count = count($result);
@@ -803,7 +803,7 @@ class Driver extends \MyQEE\Database\Driver
                             throw new Exception($result['errmsg'].'.query: '.$lastQuery);
                         }
                     }
-                    else if ($options['distinct'])
+                    else if (isset($options['distinct']) && $options['distinct'])
                     {
                         # 查询唯一值
                         $lastQuery = 'db.'. $collection .'.distinct('.$options['distinct'].', '.json_encode($options['where'], JSON_UNESCAPED_UNICODE).')';
@@ -830,12 +830,16 @@ class Driver extends \MyQEE\Database\Driver
                     }
                     else
                     {
+                        if (!isset($options['select'])) {
+                            $options['select'] = '';
+                        }
+
                         $lastQuery  = 'db.'. $collection .'.find(';
                         $lastQuery .= $options['where'] ? json_encode($options['where'], JSON_UNESCAPED_UNICODE) : '{}';
                         $lastQuery .= $options['select'] ? ', '. json_encode($options['select'], JSON_UNESCAPED_UNICODE) : '';
                         $lastQuery .= ')';
 
-                        if ($options['total_count'])
+                        if (isset($options['totalCount']) && $options['totalCount'])
                         {
                             $lastQuery .= '.count()';
                             $result = $connection->selectCollection($collection)->count($options['where']);
@@ -846,19 +850,19 @@ class Driver extends \MyQEE\Database\Driver
                         {
                             $opt = [];
 
-                            if ($options['sort'])
+                            if (isset($options['sort']) && $options['sort'])
                             {
                                 $opt['sort'] = $options['sort'];
                                 $lastQuery .= '.sort('. json_encode($options['sort']) .')';
                             }
 
-                            if ($options['skip'])
+                            if (isset($options['skip']) && $options['skip'])
                             {
                                 $opt['skip'] = $options['skip'];
                                 $lastQuery .= '.skip('. json_encode($options['skip']) .')';
                             }
 
-                            if ($options['limit'])
+                            if (isset($options['limit']) && $options['limit'])
                             {
                                 $opt['limit'] = $options['limit'];
                                 $lastQuery   .= '.limit('. json_encode($options['limit']) .')';
