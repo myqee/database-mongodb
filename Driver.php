@@ -646,7 +646,7 @@ class Driver extends \MyQEE\Database\Driver
                             }
                         }
 
-                        if ($options['groupConcat'])foreach($options['groupConcat'] as $item)
+                        if (isset($options['groupConcat']) && $options['groupConcat'])foreach($options['groupConcat'] as $item)
                         {
                             if (is_array($item[0]))
                             {
@@ -759,8 +759,17 @@ class Driver extends \MyQEE\Database\Driver
                             $pipeline[]['$limit'] = $options['limit'];
                         }
 
+                        $opt = [
+                            'allowDiskUse' => true,
+                            'maxTimeMS'    => 60000
+                        ];
+                        if (isset($options['option']))
+                        {
+                            $opt = $options['option'] + $opt;
+                        }
+
                         $lastQuery = 'db.'. $collection .'.aggregate(' . json_encode($pipeline, JSON_UNESCAPED_UNICODE) .')';
-                        $result    = $connection->aggregate($pipeline, $collection);
+                        $result    = $connection->selectCollection($collection)->aggregate($pipeline, $opt);
 
                         // 兼容不同版本的aggregate返回
                         if ($result && ($result['ok'] == 1 || !isset($result['errmsg'])))
@@ -787,7 +796,7 @@ class Driver extends \MyQEE\Database\Driver
                                 }
                             }
 
-                            if ($options['totalCount'])
+                            if (isset($options['totalCount']) && $options['totalCount'])
                             {
                                 foreach ($result as &$item)
                                 {
@@ -848,7 +857,14 @@ class Driver extends \MyQEE\Database\Driver
                         }
                         else
                         {
-                            $opt = [];
+                            if (isset($options['option']))
+                            {
+                                $opt = $options['option'];
+                            }
+                            else
+                            {
+                                $opt = [];
+                            }
 
                             if (isset($options['sort']) && $options['sort'])
                             {
