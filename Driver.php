@@ -95,7 +95,7 @@ class Driver extends \MyQEE\Database\Driver
 
             if (!class_exists($class, false))
             {
-                throw new Exception(__('You do not have to install MongoDB extension, see http://php.net/manual/zh/mongodb.installation.php'));
+                throw new Exception('You do not have to install MongoDB extension, see http://php.net/manual/zh/mongodb.installation.php');
             }
         }
 
@@ -474,7 +474,7 @@ class Driver extends \MyQEE\Database\Driver
         //    Core::debug()->log($options);
         //}
 
-        $clusterName = $this->getQueryType($options, $clusterName);
+        $queryType = $this->getQueryType($options, $clusterName);
 
         /**
          * @var Func $connection
@@ -514,7 +514,7 @@ class Driver extends \MyQEE\Database\Driver
 
         try
         {
-            switch($clusterName)
+            switch($queryType)
             {
                 case 'SELECT':
 
@@ -1253,7 +1253,7 @@ class Driver extends \MyQEE\Database\Driver
      * and HAVING.
      *
      * @param   array  $conditions condition statements
-     * @return  string
+     * @return  array
      */
     protected function compileConditions(array $conditions)
     {
@@ -1313,7 +1313,7 @@ class Driver extends \MyQEE\Database\Driver
         return $query;
     }
 
-    protected function getQueryType($options, & $connectionType)
+    protected function getQueryType($options, & $clusterName)
     {
         $type = strtoupper($options['type']);
 
@@ -1325,22 +1325,22 @@ class Driver extends \MyQEE\Database\Driver
 
         if (in_array($type, $slaveType))
         {
-            if (true === $connectionType)
+            if (true === $clusterName)
             {
-                $connectionType = 'master';
+                $clusterName = 'master';
             }
-            else if (is_string($connectionType))
+            else if (is_string($clusterName))
             {
-                if (!preg_match('#^[a-z0-9_]+$#i', $connectionType))$connectionType = 'master';
+                if (!preg_match('#^[a-z0-9_]+$#i', $clusterName))$clusterName = 'master';
             }
             else
             {
-                $connectionType = 'slave';
+                $clusterName = 'slave';
             }
         }
         else
         {
-            $connectionType = 'master';
+            $clusterName = 'master';
         }
 
         return $type;
