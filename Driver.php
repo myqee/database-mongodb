@@ -132,6 +132,11 @@ class Driver extends \MyQEE\Database\Driver
             # 切换库
             $this->selectDB($config['database']);
         }
+        
+        # 前缀
+        if (!isset($config['table_prefix']) {
+            $config['table_prefix'] = '';
+        }
 
         # Core::debug()->info('MongoDB '. ($username ? $username .'@' : ''). $hostname .':'. $port .' connection time:' . (microtime(true) - $time));
 
