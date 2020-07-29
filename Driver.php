@@ -134,7 +134,7 @@ class Driver extends \MyQEE\Database\Driver
         }
         
         # 前缀
-        if (!isset($config['table_prefix']) {
+        if (!isset($config['table_prefix'])) {
             $config['table_prefix'] = '';
         }
 
